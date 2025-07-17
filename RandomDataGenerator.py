@@ -6,7 +6,7 @@ import random
 from faker import Faker
 from colorama import Fore, Style, init
 init()
-########################
+###########################################
 
 
 def main():
