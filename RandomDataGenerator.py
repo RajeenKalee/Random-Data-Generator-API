@@ -1,182 +1,251 @@
-## Random Data Generator By Rajeen Kaleerathan ##
+## Random Data Generator By Rajeen Kaleerathan  ##
 
 ## Imported Libraries ##
 import json
 import random
 from faker import Faker
 from colorama import Fore, Style, init
+import re  ## Needed to clean country codes
 init()
 ###########################################
 
+fake = Faker()  ## Faker instance that generates types of fake data ##
 
-def main():
-    while True:
-        print("")
-        print(Fore.LIGHTRED_EX + "Random Data Generator - By Rajeen K"  + Style.RESET_ALL)
-        print(Fore.LIGHTGREEN_EX + "Please select from the options below" + Style.RESET_ALL)
-        print("")
-        print("1. Create New Schema")
-        print("2. List Schemas")
-        print("3. Run a Schema")
-        print("4. Delete a Schema")
-        print("")
-        print("5. Exit")
-        print("")
-        choice = input("Choose an option: ").strip()
+## Stores the current record’s locale so Address and Country Code match ##
+def get_random_locale():
+    return random.choice([
+        ('en_US', 'US'),
+        ('en_GB', 'GB'),
+        ('fr_FR', 'FR'),
+        ('de_DE', 'DE'),
+        ('en_CA', 'CA'),
+    ])
 
-        if choice == "1":
-            create_new_schema()
-        elif choice == "2":
-            list_schemas()
-        elif choice == "3":
-            name = input("Enter the schema name to run: ").strip()
-            run_schema(name)
-        elif choice == "4":
-            name = input("Enter the schema name to delete: ").strip()
-            delete_schema(name)
-        elif choice == "5":
-            print("\nThank you!\n")
-            break
-        else:
-            print("Invalid choice. Please select a number from the menu.")
+## Function to return realistic international phone number as a formatted string ##
+def generate_global_phone_string():
+    country_code = fake.country_calling_code()
+    number = fake.msisdn()[3:13]
+    return f"({country_code}) {number[:4]} {number[4:]}"
 
 
-fake = Faker() ## Faker instance that generates types of fake data ##
-SCHEMA_FILE = "schemas.json"
+## Function to return international phone number as a numeric-only integer ##
+def generate_global_phone_integer():
+    raw_code = fake.country_calling_code()
+    country_code = re.sub(r"\D", "", raw_code)  # Remove + and spaces
+    number = fake.msisdn()[3:13]
+    return int(f"{country_code}{number}")
 
-data_fields = {
-    "ID Number": lambda: random.randint(1, 99999), ## Each value here is a lambda function that returns a randomly generated piece of data for that field. ##
-    "Username": lambda: fake.user_name(),
-    "Full Name": lambda: fake.name(),
-    "DOB (DD/MM/YYYY)": lambda: fake.date_of_birth().strftime("%d/%m/%Y"), ## Date set for UK Region ##
-    "Email": lambda: fake.email(),
-    "Phone Number": lambda: fake.phone_number(),
-    "Address": lambda: fake.address(),
-    "IPv4 Address": lambda: fake.ipv4(),
+
+## Function to generate address and matching country code from same locale ##
+def generate_address_and_country():
+    locale, code = random.choice(supported_locales)  ## Pick a random locale-country pair
+    localized_fake = Faker(locale)  ## New faker instance for that locale
+    address = localized_fake.address().replace("\n", ", ")  ## Format address for readability
+    return {
+        "Address": address,
+        "Country Code": code
+    }
+
+
+## Available fields mapped to data types and their generator functions ##
+available_field_types = {
+    "Full Name": {
+        "string": lambda: fake.name()  ## Person's full name ##
+    },
+    "Email": {
+        "string": lambda: fake.email()  ## Email address ##
+    },
+    "Phone Number": {
+        "string": generate_global_phone_string,  ## Formatted international phone ##
+        "integer": generate_global_phone_integer  ## Raw numeric phone with country code ##
+    },
+    "Date of Birth": {
+        "iso": None  ## Injected at runtime after user inputs age range ##
+    },
+    "ID Number": {
+        "integer": lambda: random.randint(1000, 999999)  ## Simulated unique identifier ##
+    },
+    "Is Active": {
+        "boolean": lambda: random.choice([True, False])  ## Boolean flag: user is active or not ##
+    },
+    "Is Employee": {
+        "boolean": lambda: random.choice([True, False])  ## Boolean flag: If they are a part of the company ##
+    },
+    "Address": {
+        "string": None  ## Will be generated using locale matched Faker instance ##
+    },
+    "Country Code": {
+        "string": None  ## Will match the country for the generated address ##
+    }
 }
 
 
-def save_schema(name, fields, count):
-    schema = load_schemas()
-    schema[name] = {"fields": fields, "count": count}
-    with open(SCHEMA_FILE, "w") as f:
-        json.dump(schema, f, indent=2)
+
+## Function Factory to create Date of Birth generator with custom age range ##
+def make_dob_generator_with_prompt():
+    while True:
+        try:
+            min_age = int(input("Enter minimum age for Date of Birth: ").strip())
+            max_age = int(input("Enter maximum age for Date of Birth: ").strip())
+            if min_age < 0 or max_age < min_age:
+                raise ValueError
+            return lambda: fake.date_of_birth(minimum_age=min_age, maximum_age=max_age).isoformat()
+        except ValueError:
+            print(Fore.RED + "Invalid age range. Please enter valid numbers.\n" + Style.RESET_ALL)
 
 
-def load_schemas():
-    try:
-        with open(SCHEMA_FILE, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-
-
-def delete_schema(name):
-    schema = load_schemas()
-    if name in schema:
-        del schema[name]
-        with open(SCHEMA_FILE, "w") as f:
-            json.dump(schema, f, indent=2)
-        print(f"Schema '{name}' deleted.")
-    else:
-        print(f"No schema found with name '{name}'.")
-
-
-def list_schemas():
-    schemas = load_schemas()
-    if not schemas:
-        print("No schemas available.\n")
-    else:
-        print(Fore.LIGHTGREEN_EX + "\nAvailable Schemas:" + Style.RESET_ALL)
-        for name, schema in schemas.items():
-            print(f"• {name} ----- Fields: {schema['fields']}, Count: {schema['count']}")
-        print()
-
-
-def generate_data(fields, count):
-    result = []
-    for _ in range(count):
-        obj = {field: data_fields[field]() for field in fields} ## Generates a fake data record using the selected fields ##
-        result.append(obj)
-    return result
-
-
+## Display all available field options to the user ##
 def display_field_options():
     print()
-    print(Fore.LIGHTGREEN_EX + "Please pick from the list of data fields you would like to generate:" + Style.RESET_ALL)
-    print()
-    for i, field in enumerate(data_fields.keys(), 1): ## Displays the field options to the user from the list of fields above ##
+    print(Fore.LIGHTGREEN_EX + "Available Data Fields:" + Style.RESET_ALL)
+    for i, field in enumerate(available_field_types.keys(), 1):
         print(f"{i}. {field}")
     print()
 
 
+## User selects both field and data type for generation ##
 def get_user_field_selection():
+    selected_generators = {}
+
     while True:
-        display_field_options()  ## Displays the field options again when creating a schema ##
-        print(Fore.LIGHTGREEN_EX + "Enter the numbers of the fields you'd like! (Please separate them with commas!):" + Style.RESET_ALL)
-        user_input = input("Your selection: ").strip() ## Collects the users input on field selection ##
+        display_field_options()
+        print(Fore.LIGHTGREEN_EX + "Enter the numbers of the fields you'd like (comma-separated):" + Style.RESET_ALL)
+        user_input = input("Your selection: ").strip()
 
         if not user_input:
-            print("No input provided.\n") ## Validation is done here if nothing has been entered in ##
+            print("No input provided.\n")
             continue
 
         raw_items = user_input.split(',')
-        indices = []
-
         try:
             for item in raw_items:
                 item = item.strip()
-                index = int(item)  ## Throws an error if it's not an integer ##
-                if index < 1 or index > len(data_fields): ## Validation is done here if number entered is not part of the list ##
-                    raise ValueError(f"Option {index} is not an option!.")
-                indices.append(index)
+                index = int(item)
+                if index < 1 or index > len(available_field_types):
+                    raise ValueError(f"Invalid option: {index}")
+                field_name = list(available_field_types.keys())[index - 1]
 
-            selected_fields = [list(data_fields.keys())[i - 1] for i in indices] ## Get selected field names based on user chosen numbers ##
-            return selected_fields
+                ## Ask for type ##
+                type_options = available_field_types[field_name]
+                print(f"Available types for '{field_name}':")
+                for i, dtype in enumerate(type_options.keys(), 1):
+                    print(f"  {i}. {dtype}")
+                type_choice = input(f"Choose data type for '{field_name}': ").strip()
 
-        except ValueError:
-            print(Fore.RED + "\nInvalid input. Please input numbers from the list of options!.\n" + Style.RESET_ALL)
+                ## Accept either index or name of type ##
+                if type_choice.isdigit():
+                    type_index = int(type_choice)
+                    dtype = list(type_options.keys())[type_index - 1]
+                elif type_choice in type_options:
+                    dtype = type_choice
+                else:
+                    raise ValueError("Invalid type choice.")
+
+                ## Handle Date of Birth age prompt separately ##
+                if field_name == "Date of Birth" and dtype == "iso":
+                    selected_generators[field_name] = make_dob_generator_with_prompt()
+                else:
+                    selected_generators[field_name] = available_field_types[field_name][dtype]
+            if selected_generators:
+                return selected_generators  ## Dict of Field → Generator functions ##
+            else:
+                print(Fore.RED + "No valid fields selected.\n" + Style.RESET_ALL)
+        except ValueError as e:
+            print(Fore.RED + f"\nInvalid input: {e}\n" + Style.RESET_ALL)
 
 
+## Ask how many records to generate ##
 def get_object_count():
     while True:
         try:
-            count = int(input("How many objects would you like to generate? ")) ## Asks user how many object
-            if count <= 0:  ## Validation is done here if number entered is 0 or below ##
+            count = int(input("How many objects would you like to generate? "))
+            if count <= 0:
                 raise ValueError("Please choose a number greater than 0!")
             return count
         except ValueError:
             print(Fore.RED + "Please enter a valid positive integer.\n" + Style.RESET_ALL)
 
 
-def display_data_ndjson(data):
-    print("")
-    print("")
-    for item in data:
-        print(json.dumps(item)) ## Puts the dictionary to a NDJSON formatted string and prints to the response body ##
-    print("")
-    print("")
+## Ask user for output format (NDJSON / JSON) using numbered options ##
+def get_output_format():
+    while True:
+        print("\nOutput format:")
+        print("1. NDJSON")
+        print("2. JSON")
+        choice = input("Choose format (1 or 2): ").strip()
+        if choice == "1":
+            return "ndjson"
+        elif choice == "2":
+            return "json"
+        else:
+            print(Fore.RED + "Invalid input. Please choose 1 or 2.\n" + Style.RESET_ALL)
+
+
+## Generate fake data based on user-defined fields and types ##
+def generate_data(fields, count):
+    result = []
+
+    for _ in range(count):
+        obj = {}
+
+        ## Shared locale for Address and Country Code consistency ##
+        locale, country_code = get_random_locale()
+        localized_fake = Faker(locale)
+
+        for field, dtype in fields.items():
+            ## Special case: Locale-based address ##
+            if field == "Address":
+                obj[field] = localized_fake.address().replace("\n", ", ")
+
+            ## Special case: Country Code tied to locale ##
+            elif field == "Country Code":
+                obj[field] = country_code
+
+            ## Standard field → resolve function → call it ##
+            elif field in available_field_types and dtype in available_field_types[field]:
+                generator_func = available_field_types[field][dtype]
+                obj[field] = generator_func()
+
+            ## Invalid field or type ##
+            else:
+                obj[field] = f"[Invalid: {field} - {dtype}]"
+
+        result.append(obj)
+
+    return result
 
 
 
-def run_schema(name):
-    schemas = load_schemas()
-    if name not in schemas:
-        print(f"No schema named '{name}'.")
-        return
-    schema = schemas[name]
-    data = generate_data(schema["fields"], schema["count"])
-    display_data_ndjson(data)  ## This will Print it to the response body ##
+
+## Display generated data in chosen format ##
+def display_data(data, fmt):
+    print()
+    print(Fore.LIGHTGREEN_EX + "Generated Data:\n" + Style.RESET_ALL)
+    if fmt == "ndjson":
+        for item in data:
+            print(json.dumps(item))
+    else:  ## json
+        print(json.dumps(data, indent=2))
+    print()
 
 
+## Main CLI flow for generating random data ##
+def main():
+    print(Fore.LIGHTRED_EX + "\nRandom Data Generator - By Rajeen K\n" + Style.RESET_ALL)
 
-def create_new_schema():
-    selected_fields = get_user_field_selection() ## Grabs the user field selection ##
-    count = get_object_count() ## Counts how many objects to generate from the user input ##
-    name = input("Enter a name for your schema: ").strip()
-    save_schema(name, selected_fields, count)
-    print(Fore.LIGHTGREEN_EX + f"Schema '{name}' created.\n" + Style.RESET_ALL)
+    while True:
+        selected_generators = get_user_field_selection()
+        count = get_object_count()
+        fmt = get_output_format()
+        data = generate_data(selected_generators, count)
+        display_data(data, fmt)
+
+        ## Ask if user wants to generate more data ##
+        again = input("\nDo you want to generate more data? (y/n): ").strip().lower()
+        if again != "y":
+            print(Fore.LIGHTGREEN_EX + "\nThank you for using the generator!\n" + Style.RESET_ALL)
+            break
 
 
-if __name__ == "__main__": ## Runs the main() function only if this script is run directly ##
+if __name__ == "__main__":  ## Runs the main() function only if this script is run directly ##
     main()

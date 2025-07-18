@@ -1,53 +1,82 @@
-## API By Rajeen Kaleerathan ##
+## API By Rajeen Kaleerathan  ##
 
 ## Imported ##
+from flask import Flask, request, jsonify, Response
+from RandomDataGenerator import generate_data
+import json
 
-from flask import Flask, request, jsonify
-from RandomDataGenerator import (
-    load_schemas,
-    save_schema,
-    generate_data,
-    data_fields
-)
-
-###############
-
-
+####################
 
 app = Flask(__name__)
 
+## In-memory schema storage ##
+schemas = {}
+
+####################
+
 @app.route("/")
 def home():
-    return jsonify({"Message": "Random Data Generator API is running."})
+    return jsonify({"message": "Random Data Generator API is running."})
 
-## ENDPOINT 1 - POST /schemas - Create a new Schema ##
-app.route("/schemas", methods=["POST"])
+####################
+
+## POST /schemas - Create and store a schema in memory ##
+@app.route("/schemas", methods=["POST"])
 def create_schema():
     data = request.get_json()
     name = data.get("name")
     fields = data.get("fields")
     count = data.get("count")
 
-    if name and isinstance(fields, list) and isinstance(count, int):
-        save_schema(name, fields, count)
-        return jsonify({"Message": f"Schema '{name}' has been created successfully!"})
-    return jsonify({"Error": "Invalid request format."}), 400
+    if not all([name, isinstance(fields, dict), isinstance(count, int)]):
+        return jsonify({
+            "error": "Invalid input. Must include 'name', 'fields' (dict), and 'count' (int)."
+        }), 400
 
-## ENDPOINT 2 - GET /schemas/<name>/data - Generates and returns fake data from the chosen schema ##
-@app.route("/schemas/<name>/data", methods=["GET"])
-def get_schema_data(name):
-    schemas = load_schemas()
+    schemas[name] = {
+        "fields": fields,
+        "count": count
+    }
+
+    return jsonify({
+        "message": f"Schema '{name}' created successfully."
+    }), 201
+
+####################
+
+## GET /schemas/<name>/run - Generate data using saved schema ##
+@app.route("/schemas/<name>/run", methods=["GET"])
+def run_schema(name):
     schema = schemas.get(name)
-    if not schema:
-        return jsonify({"Error": f"Schema '{name}' can't be found!"}), 404
 
+    ## Check if schema exists ##
+    if not schema:
+        return jsonify({"error": f"Schema '{name}' not found."}), 404
+
+    ## Determine response format using Accept header ##
+    accept_header = request.headers.get("Accept", "application/json").lower()
+
+    ## Generate data using schema fields and count ##
     data = generate_data(schema["fields"], schema["count"])
+
+    ## If client requests NDJSON explicitly ##
+    if "application/x-ndjson" in accept_header:
+        ndjson_output = "\n".join(json.dumps(record) for record in data)
+        return Response(ndjson_output, mimetype="application/x-ndjson")
+
+    ## Default to JSON array ##
     return jsonify(data)
 
-## ENDPOINT 3 - GET /schemas - List all schemas ##
+
+
+####################
+
+## GET /schemas - List all schema names ##
 @app.route("/schemas", methods=["GET"])
 def list_schemas():
-    return jsonify(load_schemas())
+    return jsonify(list(schemas.keys()))
+
+####################
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
