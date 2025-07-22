@@ -38,13 +38,14 @@ def generate_global_phone_integer():
 
 ## Function to generate address and matching country code from same locale ##
 def generate_address_and_country():
-    locale, code = random.choice(supported_locales)  ## Pick a random locale-country pair
-    localized_fake = Faker(locale)  ## New faker instance for that locale
-    address = localized_fake.address().replace("\n", ", ")  ## Format address for readability
+    locale, code = get_random_locale()
+    localized_fake = Faker(locale)
+    address = localized_fake.address().replace("\n", ", ")
     return {
         "Address": address,
         "Country Code": code
     }
+
 
 
 ## Available fields mapped to data types and their generator functions ##
