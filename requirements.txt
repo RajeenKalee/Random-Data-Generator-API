@@ -1,3 +1,6 @@
 pytest
 faker
 colorama
+flask
+requests
+playwright
