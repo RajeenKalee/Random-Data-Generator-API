@@ -59,3 +59,17 @@ def test_generate_data_with_invalid_type():
 def test_generate_data_with_empty_fields():
     data = generate_data({}, 1)
     assert data == [{}]
+
+## NEW: Test multiple records generation ##
+def test_generate_multiple_records():
+    fields = {"Email": "email_address", "ID": "id_number"}
+    data = generate_data(fields, 3)
+    assert len(data) == 3
+    for record in data:
+        assert "Email" in record and "ID" in record
+
+## NEW: Test locale integrity in address generation ##
+def test_address_country_locale_integrity():
+    result = generate_address_and_country()
+    assert isinstance(result["Address"], str)
+    assert len(result["Country Code"]) == 2

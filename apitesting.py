@@ -64,12 +64,39 @@ def test_run_missing_schema(api):
     assert res.status == 404
     assert "not found" in res.json()["error"]
 
+## Test NDJSON response format ##
+def test_run_schema_ndjson_response(api, created_schema):
+    headers = {"Accept": "application/x-ndjson"}
+    res = api.get(f"/schemas/{created_schema}/data", headers=headers)
+    assert res.status == 200
+    lines = res.text().strip().split("\n")
+    assert all(line.startswith("{") for line in lines)
 
-## Test for Missing Field in Schema ##
+## Test listing all schemas ##
+def test_list_schemas(api, created_schema):
+    res = api.get("/schemas")
+    assert res.status == 200
+    assert isinstance(res.json(), list)
+    assert created_schema in res.json()
+
+## Test schema creation with wrong field types ##
+def test_create_schema_with_invalid_field_types(api):
+    bad_schema = {
+        "name": "badTypes",
+        "fields": ["not", "a", "dict"],
+        "count": "five"
+    }
+    res = api.post("/schemas", data=json.dumps(bad_schema))
+    assert res.status == 400
+    assert "Invalid input" in res.json()["error"]
+
+## Test schema creation missing 'count' field ##
 def test_create_schema_missing_fields(api):
     schema = {
         "name": "badSchema",
-        "fields": {"name": "full_name"}  # missing 'count'
+        "fields": {
+            "name": "full_name"
+        }
     }
     res = api.post("/schemas", data=json.dumps(schema))
     assert res.status == 400
