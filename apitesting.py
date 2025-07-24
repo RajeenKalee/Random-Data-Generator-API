@@ -2,7 +2,7 @@ import pytest
 import json
 from playwright.sync_api import sync_playwright
 
-BASE_URL = "http://localhost:5000"
+BASE_URL = "http://localhost:5151"
 
 ## Setup a Playwright API session ##
 @pytest.fixture(scope="session")
