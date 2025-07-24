@@ -44,30 +44,24 @@ def create_schema():
 
 ####################
 
-## GET /schemas/<name>/run - Generate data using saved schema ##
-@app.route("/schemas/<name>/run", methods=["GET"])
-def run_schema(name):
+## GET /schemas/<name>/data - Generate data using saved schema ##
+@app.route("/schemas/<name>/data", methods=["GET"])
+def get_schema_data(name):
     schema = schemas.get(name)
 
-    ## Check if schema exists ##
     if not schema:
         return jsonify({"error": f"Schema '{name}' not found."}), 404
 
-    ## Determine response format using Accept header ##
-    accept_header = request.headers.get("Accept", "application/json").lower()
-
-    ## Generate data using schema fields and count ##
+    ## Pass raw fields (which map field → data_type) to the generator
     data = generate_data(schema["fields"], schema["count"])
 
-    ## If client requests NDJSON explicitly ##
+    accept_header = request.headers.get("Accept", "application/json").lower()
+
     if "application/x-ndjson" in accept_header:
         ndjson_output = "\n".join(json.dumps(record) for record in data)
         return Response(ndjson_output, mimetype="application/x-ndjson")
 
-    ## Default to JSON array ##
     return jsonify(data)
-
-
 
 ####################
 

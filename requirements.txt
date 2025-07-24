@@ -4,3 +4,4 @@ colorama
 flask
 requests
 playwright
+gunicorn

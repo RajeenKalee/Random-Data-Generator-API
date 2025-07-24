@@ -46,54 +46,32 @@ def generate_address_and_country():
         "Country Code": code
     }
 
-
-
-## Available fields mapped to data types and their generator functions ##
-available_field_types = {
-    "Full Name": {
-        "string": lambda: fake.name()  ## Person's full name ##
-    },
-    "Email": {
-        "string": lambda: fake.email()  ## Email address ##
-    },
-    "Phone Number": {
-        "string": generate_global_phone_string,  ## Formatted international phone ##
-        "integer": generate_global_phone_integer  ## Raw numeric phone with country code ##
-    },
-    "Date of Birth": {
-        "iso": None  ## Injected at runtime after user inputs age range ##
-    },
-    "ID Number": {
-        "integer": lambda: random.randint(1000, 999999)  ## Simulated unique identifier ##
-    },
-    "Is Active": {
-        "boolean": lambda: random.choice([True, False])  ## Boolean flag: user is active or not ##
-    },
-    "Is Employee": {
-        "boolean": lambda: random.choice([True, False])  ## Boolean flag: If they are a part of the company ##
-    },
-    "Address": {
-        "string": None  ## Will be generated using locale matched Faker instance ##
-    },
-    "Country Code": {
-        "string": None  ## Will match the country for the generated address ##
-    }
+## Define generator functions mapped by standard data types ##
+available_data_types = {
+    "full_name": lambda: fake.name(),
+    "email_address": lambda: fake.email(),
+    "phone_number": generate_global_phone_string,
+    "phone_number_int": generate_global_phone_integer,
+    "full_address": lambda: fake.address().replace("\n", ", "),
+    "alpha2": lambda: get_random_locale()[1],    ## alpha2 looks at the ISO 3166-1 alpha-2 country code format. It’s a two letter country code used show the countries. ##
+    "id_number": lambda: random.randint(1000, 999999),
+    "boolean": lambda: random.choice([True, False]),
+    "date_iso": lambda: fake.date_of_birth(minimum_age=18, maximum_age=65).isoformat(),
 }
 
-
-
-## Function Factory to create Date of Birth generator with custom age range ##
-def make_dob_generator_with_prompt():
-    while True:
-        try:
-            min_age = int(input("Enter minimum age for Date of Birth: ").strip())
-            max_age = int(input("Enter maximum age for Date of Birth: ").strip())
-            if min_age < 0 or max_age < min_age:
-                raise ValueError
-            return lambda: fake.date_of_birth(minimum_age=min_age, maximum_age=max_age).isoformat()
-        except ValueError:
-            print(Fore.RED + "Invalid age range. Please enter valid numbers.\n" + Style.RESET_ALL)
-
+## User-friendly field options to display in CLI ##
+available_field_types = {
+    "Full Name": "full_name",
+    "Email": "email_address",
+    "Phone Number": "phone_number",
+    "Phone Number (Int)": "phone_number_int",
+    "Date of Birth": "date_iso",
+    "ID Number": "id_number",
+    "Is Active": "boolean",
+    "Is Employee": "boolean",
+    "Address": "full_address",
+    "Country Code": "alpha2"   ## alpha2 looks at the ISO 3166-1 alpha-2 country code format. It’s a two letter country code used show the countries. ##
+}
 
 ## Display all available field options to the user ##
 def display_field_options():
@@ -103,8 +81,7 @@ def display_field_options():
         print(f"{i}. {field}")
     print()
 
-
-## User selects both field and data type for generation ##
+## User selects both output field name and data type ##
 def get_user_field_selection():
     selected_generators = {}
 
@@ -124,36 +101,21 @@ def get_user_field_selection():
                 index = int(item)
                 if index < 1 or index > len(available_field_types):
                     raise ValueError(f"Invalid option: {index}")
-                field_name = list(available_field_types.keys())[index - 1]
+                display_name = list(available_field_types.keys())[index - 1]
+                data_type = available_field_types[display_name]
 
-                ## Ask for type ##
-                type_options = available_field_types[field_name]
-                print(f"Available types for '{field_name}':")
-                for i, dtype in enumerate(type_options.keys(), 1):
-                    print(f"  {i}. {dtype}")
-                type_choice = input(f"Choose data type for '{field_name}': ").strip()
+                ## Prompt user for custom field name (optional) ##
+                custom_name = input(f"Enter output field name for '{display_name}' (or press enter to keep as '{display_name}'): ").strip()
+                output_field_name = custom_name if custom_name else display_name
 
-                ## Accept either index or name of type ##
-                if type_choice.isdigit():
-                    type_index = int(type_choice)
-                    dtype = list(type_options.keys())[type_index - 1]
-                elif type_choice in type_options:
-                    dtype = type_choice
-                else:
-                    raise ValueError("Invalid type choice.")
+                selected_generators[output_field_name] = data_type
 
-                ## Handle Date of Birth age prompt separately ##
-                if field_name == "Date of Birth" and dtype == "iso":
-                    selected_generators[field_name] = make_dob_generator_with_prompt()
-                else:
-                    selected_generators[field_name] = available_field_types[field_name][dtype]
             if selected_generators:
-                return selected_generators  ## Dict of Field → Generator functions ##
+                return selected_generators  ## Dict of Output Field Name → Data Type String ##
             else:
                 print(Fore.RED + "No valid fields selected.\n" + Style.RESET_ALL)
         except ValueError as e:
             print(Fore.RED + f"\nInvalid input: {e}\n" + Style.RESET_ALL)
-
 
 ## Ask how many records to generate ##
 def get_object_count():
@@ -181,42 +143,23 @@ def get_output_format():
         else:
             print(Fore.RED + "Invalid input. Please choose 1 or 2.\n" + Style.RESET_ALL)
 
-
-## Generate fake data based on user-defined fields and types ##
+## Generate fake data using field-to-datatype mappings ##
 def generate_data(fields, count):
     result = []
 
     for _ in range(count):
         obj = {}
 
-        ## Shared locale for Address and Country Code consistency ##
-        locale, country_code = get_random_locale()
-        localized_fake = Faker(locale)
-
         for field, dtype in fields.items():
-            ## Special case: Locale-based address ##
-            if field == "Address":
-                obj[field] = localized_fake.address().replace("\n", ", ")
-
-            ## Special case: Country Code tied to locale ##
-            elif field == "Country Code":
-                obj[field] = country_code
-
-            ## Standard field → resolve function → call it ##
-            elif field in available_field_types and dtype in available_field_types[field]:
-                generator_func = available_field_types[field][dtype]
+            generator_func = available_data_types.get(dtype)
+            if generator_func:
                 obj[field] = generator_func()
-
-            ## Invalid field or type ##
             else:
-                obj[field] = f"[Invalid: {field} - {dtype}]"
+                obj[field] = f"[Invalid: {dtype}]"
 
         result.append(obj)
 
     return result
-
-
-
 
 ## Display generated data in chosen format ##
 def display_data(data, fmt):
