@@ -39,3 +39,23 @@ def test_generate_email_field():
     fields = {"Email": "email_address"}  ## Schema format: label → data_type ##
     data = generate_data(fields, 1)
     assert "@" in data[0]["Email"]
+
+## Test data generation for all supported field types ##
+@pytest.mark.parametrize("field_type", [
+    "full_name", "email_address", "phone_number", "phone_number_int",
+    "date_iso", "id_number", "boolean", "alpha2"
+])
+def test_generate_all_supported_data_types(field_type):
+    data = generate_data({"field": field_type}, 1)
+    assert len(data) == 1
+    assert "field" in data[0]
+
+## Test generate_data with an invalid data type ##
+def test_generate_data_with_invalid_type():
+    data = generate_data({"UnknownField": "not_real_type"}, 1)
+    assert data[0]["UnknownField"].startswith("[Invalid:")
+
+## Test generate_data with no fields provided ##
+def test_generate_data_with_empty_fields():
+    data = generate_data({}, 1)
+    assert data == [{}]

@@ -63,3 +63,14 @@ def test_run_missing_schema(api):
     res = api.get("/schemas/notThere/data")
     assert res.status == 404
     assert "not found" in res.json()["error"]
+
+
+## Test for Missing Field in Schema ##
+def test_create_schema_missing_fields(api):
+    schema = {
+        "name": "badSchema",
+        "fields": {"name": "full_name"}  # missing 'count'
+    }
+    res = api.post("/schemas", data=json.dumps(schema))
+    assert res.status == 400
+    assert "Invalid input" in res.json()["error"]
