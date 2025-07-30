@@ -1,4 +1,4 @@
-# Random Data Generator API - Testing the GitHub Webhook
+# Random Data Generator API 
 
 A Python based application for generating realistic fake data based on user defined schemas. It includes a command-line interface and a RESTful Flask API for defining, storing, and executing data schemas. Useful for prototyping, testing, and populating mock datasets.
 
