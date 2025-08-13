@@ -4,12 +4,16 @@
 import json
 import random
 from faker import Faker
+from faker_music import MusicProvider
 from colorama import Fore, Style, init
-import re  ## Needed to clean country codes
+import re  # Needed to clean country codes
+
 init()
 ###########################################
 
-fake = Faker()  ## Faker instance that generates types of fake data ##
+fake = Faker()  # Faker instance that generates types of fake data
+import faker_music
+fake.add_provider(MusicProvider)
 
 ## Stores the current record’s locale so Address and Country Code match ##
 def get_random_locale():
@@ -57,6 +61,12 @@ available_data_types = {
     "id_number": lambda: random.randint(1000, 999999),
     "boolean": lambda: random.choice([True, False]),
     "date_iso": lambda: fake.date_of_birth(minimum_age=18, maximum_age=65).isoformat(),
+    ### Music Data fields ###
+    "music_genre": lambda: fake.music_genre(),
+    "music_instrument": lambda: fake.music_instrument(),
+    "artist_name": lambda: fake.name(),  # Fake artist name
+    "song_title": lambda: fake.sentence(nb_words=3).replace(".", ""),  # Remove period
+    "album_title": lambda: fake.catch_phrase()
 }
 
 ## User-friendly field options to display in CLI ##
@@ -70,7 +80,13 @@ available_field_types = {
     "Is Active": "boolean",
     "Is Employee": "boolean",
     "Address": "full_address",
-    "Country Code": "alpha2"   ## alpha2 looks at the ISO 3166-1 alpha-2 country code format. It’s a two letter country code used show the countries. ##
+    "Country Code": "alpha2",   ## alpha2 looks at the ISO 3166-1 alpha-2 country code format. It’s a two letter country code used show the countries. ##
+    "Music Genre": "music_genre",
+    "Music Instrument": "music_instrument",
+    "Artist Name": "artist_name",
+    "Song Title": "song_title",
+    "Album Title": "album_title"
+
 }
 
 ## Display all available field options to the user ##
