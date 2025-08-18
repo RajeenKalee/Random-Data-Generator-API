@@ -1,6 +1,7 @@
 pytest
 pytest-cov
 faker
+faker-music
 colorama
 flask
 requests
