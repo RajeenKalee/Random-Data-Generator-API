@@ -1,0 +1,125 @@
+pipeline {
+    agent {
+        label "builtin"
+    }
+
+    environment {
+        REPO_URL = 'https://github.com/RajeenKalee/Random-Data-Generator-API.git'
+        BRANCH = 'main'
+        WORKDIR = '.'
+        SONAR_SCANNER = tool name: 'SonarScanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+        DOCKER_IMAGE = 'rajeenkalee/random-data-api'
+        DOCKER_TAG = 'latest'
+    }
+
+    stages {
+        stage('Installing Requirements') {
+            steps {
+                git branch: "${BRANCH}", url: "${REPO_URL}"
+                withPythonEnv('Python3') {
+                    dir("${env.WORKDIR}") {
+                        sh '''
+                            pip install --upgrade pip
+                            pip install -r requirements.txt
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Builds DockerC and pushes to DockerHub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'rk-docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker build -t $DOCKER_IMAGE:$DOCKER_TAG .
+                            docker push $DOCKER_IMAGE:$DOCKER_TAG
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Runs Unit Tests') {
+            steps {
+                withPythonEnv('Python3') {
+                    dir("${env.WORKDIR}") {
+                        sh '''
+                            export FLASK_APP=api.py
+                            export BASE_URL=http://localhost:5151
+                            python3 -m flask run --host=127.0.0.1 --port=5151 &
+                            FLASK_PID=$!
+                            sleep 3
+
+                            pytest --cov=RandomDataGenerator --cov-report=xml unittesting.py apitesting.py
+
+                            kill $FLASK_PID || true
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('SonarCloud Analysis') {
+            steps {
+                script {
+                    def scannerHome = tool 'SonarScanner'
+                    withSonarQubeEnv('RK SonarCloud') {
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=Random-Data-Generator-API \
+                              -Dsonar.organization=rajeenkalee \
+                              -Dsonar.sources=RandomDataGenerator.py \
+                              -Dsonar.python.coverage.reportPaths=coverage.xml \
+                              -Dsonar.host.url=https://sonarcloud.io \
+                              -Dsonar.qualitygate.wait=true \
+                              -Dsonar.qualitygate.timeout=300
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Runs the API Tests') {
+            steps {
+                withPythonEnv('Python3') {
+                    dir("${env.WORKDIR}") {
+                        sh '''
+                            export FLASK_APP=api.py
+                            export BASE_URL=http://localhost:5151
+                            python3 -m flask run --host=127.0.0.1 --port=5151 &
+                            FLASK_PID=$!
+                            sleep 3
+                            pytest apitesting.py
+                            kill $FLASK_PID || true
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Kubernetes Rollout Restart') {
+            steps {
+                script {
+                    sshagent(['RK-ec2-ssh-key']) {
+                        sh '''
+                            ssh -o StrictHostKeyChecking=no ubuntu@54.173.155.127 "
+                                echo 'Restarting deployment data-api in namespace data-api...'
+                                kubectl rollout restart deployment/data-api -n data-api
+                                kubectl rollout status deployment/data-api -n data-api --timeout=120s
+                            "
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished.'
+            cleanWs()
+        }
+    }
+}
