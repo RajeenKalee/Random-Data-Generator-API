@@ -20,7 +20,7 @@ spec:
           image: docker.io/rajeenkalee/random-data-api:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8080
+            - containerPort: 80
 apiVersion: v1
 kind: Service
 metadata:
@@ -32,5 +32,5 @@ spec:
     app: data-api
   ports:
     - port: 80
-      targetPort: 8080
+      targetPort: 80
       nodePort: 30000
