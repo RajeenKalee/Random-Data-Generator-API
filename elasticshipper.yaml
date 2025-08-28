@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticshipper
+  namespace: elastic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticshipper
+  template:
+    metadata:
+      labels:
+        app: elasticshipper
+    spec:
+      containers:
+        - name: shipper
+          image: elasticshipper:0.5
+          imagePullPolicy: IfNotPresent
+          command: ["python", "/app/ElasticShipper.py"]
+          args:
+            - "--api-base"
+            - "http://data-api.data-api.svc.cluster.local:80"
+            - "--es-url"
+            - "http://elasticsearch.elastic.svc.cluster.local:9200"
+            - "--es-index"
+            - "elasticshipper"

@@ -17,11 +17,11 @@ schemas = {}
 @app.route("/")
 def home():
     return jsonify({"message": "Random Data Generator API is running."})
-    
+
 @app.get("/")
 def health():
     return jsonify({"message":"Random Data Generator API is running."}), 200
-    
+
 
 ####################
 

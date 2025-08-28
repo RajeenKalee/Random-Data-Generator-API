@@ -33,16 +33,17 @@ def parse_interval(text: str) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
-    p.add_argument("--api-base", default="http://127.0.0.1:5000")
+    # Default to K8s Service DNS names so this works inside the cluster
+    p.add_argument("--api-base", default="http://random-data-generator.elastic.svc.cluster.local:5000")
     p.add_argument("--interval", type=parse_interval, default=parse_interval("15s"))
     p.add_argument("--schema-name", default="elasticshipper")
     p.add_argument("--min-count", type=int, default=80)
     p.add_argument("--max-count", type=int, default=150)
     p.add_argument("--timeout", type=int, default=10)
-    p.add_argument("--es-url", default="http://localhost:9200")
+    p.add_argument("--es-url", default="http://elasticsearch.elastic.svc.cluster.local:9200")
     p.add_argument("--es-index", default="elasticshipper")
     p.add_argument("--es-bulk-size", type=int, default=1000)
-    p.add_argument("--es-api-key", default="WkMtbndwZ0JkR09DejVFdXN6dzM6N0pmb1JTRXhFeWZJSGZ1TzRVb2FDdw==")
+    p.add_argument("--es-api-key", default="X1ZpVzY1Z0JETXhrZXBLODRpU2c6eDRQRzNiRjNBWlVkaVZwVXNQV3l2dw==")
     return p
 
 def post_schema(api_base: str, schema: Dict[str, Any], timeout: int) -> None:
@@ -143,6 +144,7 @@ def main():
                 for d in data:
                     if isinstance(d, dict):
                         x = dict(d)
+                        # no @timestamp per your request—just ship it
                         x["@ingested_at"] = now
                         docs.append(x)
                 bulk_index(args.es_url, args.es_index, docs, args.timeout, args.es_bulk_size, headers)
